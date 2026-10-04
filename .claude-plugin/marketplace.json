@@ -1,0 +1,14 @@
+{
+  "name": "ai-iso-skill",
+  "description": "The iso-figure skill for Claude Code.",
+  "owner": {
+    "name": "Tolga Cohce"
+  },
+  "plugins": [
+    {
+      "name": "iso-figure",
+      "source": "./",
+      "description": "Interactive isometric line-art figures in a single HTML file, with parts you can press."
+    }
+  ]
+}

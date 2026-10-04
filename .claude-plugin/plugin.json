@@ -1,0 +1,12 @@
+{
+  "name": "iso-figure",
+  "version": "1.0.0",
+  "description": "Interactive isometric line-art figures in a single HTML file, with parts you can press.",
+  "author": {
+    "name": "Tolga Cohce"
+  },
+  "homepage": "https://github.com/MrBongoC/ai-iso-skill",
+  "repository": "https://github.com/MrBongoC/ai-iso-skill",
+  "license": "MIT",
+  "keywords": ["isometric", "svg", "illustration", "interactive"]
+}
