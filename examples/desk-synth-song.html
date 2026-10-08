@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desk Synth — Song Mode</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: plate + sidebar. Caption row, the instrument, caption row; key map underneath. */
+  :root {
+    color-scheme: dark;
+    --bg:#0c0d0e; --panel:#141516; --edge:#222426;
+    --line:#3d4144; --detail:#2b2e30; --body:#17181a; --deck:#1b1d1f;
+    --ink:#868b8f; --ink-hi:#e6e8e9; --live:#f4f5f5;
+    --kw:#d9dcde; --kw-line:#5a5f63; --kb:#101112; --kb-line:#7d8286; --glass:#0b0c0c;
+    --mono:"DM Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg:#e9eaea; --panel:#f6f6f5; --edge:#d6d8d8;
+    --line:#8e9397; --detail:#c3c6c8; --body:#ececeb; --deck:#f3f3f2;
+    --ink:#6a6f73; --ink-hi:#16181a; --live:#0c0d0e;
+    --kw:#ffffff; --kw-line:#7b8084; --kb:#2a2c2e; --kb-line:#0c0d0e; --glass:#e2e4e4;
+  } }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg:#e9eaea; --panel:#f6f6f5; --edge:#d6d8d8;
+    --line:#8e9397; --detail:#c3c6c8; --body:#ececeb; --deck:#f3f3f2;
+    --ink:#6a6f73; --ink-hi:#16181a; --live:#0c0d0e;
+    --kw:#ffffff; --kw-line:#7b8084; --kb:#2a2c2e; --kb-line:#0c0d0e; --glass:#e2e4e4;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--mono); font-size:13px; padding-inline:16px; padding-block:20px; }
+  main { max-width:1180px; margin-inline:auto; display:grid; gap:14px; }
+  .row { display:grid; gap:14px; grid-template-columns:1fr; }
+  @media (min-width:960px) { .row { grid-template-columns:minmax(0,1fr) 280px; align-items:start; } }
+  figure { margin:0; background:var(--panel); border:1px solid var(--edge); border-radius:22px; padding:22px 26px; display:grid; gap:6px; }
+  .cap { display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 18px; text-transform:uppercase; letter-spacing:.14em; }
+  .cap .hi { color:var(--ink-hi); text-transform:none; letter-spacing:.05em; }
+  svg { width:100%; height:auto; display:block; touch-action:none; user-select:none; -webkit-user-select:none; }
+  svg:focus-visible { outline:2px solid var(--live); outline-offset:4px; border-radius:8px; }
+  .face { fill:var(--body); stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke; stroke-linejoin:round; }
+  .face.top { fill:var(--deck); }
+  .detail { fill:none; stroke:var(--detail); stroke-width:1; vector-effect:non-scaling-stroke; }
+  .glass { fill:var(--glass); }
+  .scope { fill:none; stroke:var(--live); stroke-width:1.4; vector-effect:non-scaling-stroke; stroke-linejoin:round; }
+  .lcd { fill:var(--live); font-family:var(--mono); }
+  .lbl { fill:var(--ink); font-family:var(--mono); font-size:7px; text-anchor:middle; pointer-events:none; }
+  .press { cursor:pointer; transition:transform 60ms ease-out; }
+  .press .face { transition:stroke 100ms; }
+  .press.down { transform:translateY(4px); }
+  .btn.down { transform:translateY(2.5px); }
+  .press.down .face, .btn.sel .face { stroke:var(--live); }
+  .btn.sel .lbl { fill:var(--live); }
+  .wk .face { fill:var(--kw); stroke:var(--kw-line); }
+  .bk .face { fill:var(--kb); stroke:var(--kb-line); }
+  .press:hover .face.top { stroke:var(--live); }
+  .key.cue .face { stroke:var(--live); }
+  .key.cue { animation:cue .6s ease-in-out infinite; }
+  @keyframes cue { 50% { opacity:.7; } }
+  /* sidebar */
+  #side { background:var(--panel); border:1px solid var(--edge); border-radius:22px; padding:18px 20px; display:grid; gap:12px; align-content:start; }
+  #jp { overflow:hidden; white-space:nowrap; padding:12px 6px; border-block:1px solid var(--edge); }
+  .np { display:inline-grid; justify-items:center; gap:1px; min-width:26px; padding:6px 4px 4px; margin-inline:2px; border:1px solid transparent; border-radius:8px; position:relative; vertical-align:top; }
+  .np b { font-weight:500; font-size:15px; color:var(--ink-hi); }
+  .np i { font-style:normal; font-size:8px; color:var(--ink); text-transform:uppercase; }
+  .np.hi::before { content:''; position:absolute; top:1px; left:50%; width:3px; height:3px; margin-left:-1.5px; border-radius:50%; background:var(--ink); }
+  .np.lo::after { content:''; position:absolute; bottom:0; left:50%; width:3px; height:3px; margin-left:-1.5px; border-radius:50%; background:var(--ink); }
+  .np.cur { border-color:var(--live); }
+  .np.cur b { color:var(--live); }
+  .np.done { opacity:.4; }
+  .np.miss b { text-decoration:line-through; }
+  .np.rest { opacity:.25; }
+  #stats { line-height:1.8; min-height:3.6em; }
+  #go { font:inherit; color:var(--ink-hi); background:var(--body); border:1px solid var(--line); border-radius:10px; padding:9px 10px; cursor:pointer; letter-spacing:.12em; text-transform:uppercase; }
+  #go:hover { border-color:var(--live); }
+  p { margin:0; max-width:75ch; line-height:1.6; }
+  kbd { font:inherit; color:var(--ink-hi); border:1px solid var(--edge); border-radius:4px; padding:0 4px; }
+  @media (prefers-reduced-motion:reduce){ .press{transition:none} .key.cue{animation:none} }
+</style>
+</head>
+<body>
+<main>
+  <div class="row">
+    <figure>
+      <div class="cap"><span class="hi">Fig 4b</span><span>Desk synth · song mode</span></div>
+      <svg id="stage" viewBox="0 0 700 510" tabindex="0" role="img" aria-label="Isometric synthesizer with a song mode. Press enter to start, then press the cued keys in time to play the melody."></svg>
+      <div class="cap"><span>Press enter · follow the cues</span><span class="hi" id="readout">saw · oct 4 · silent</span></div>
+    </figure>
+    <aside id="side">
+      <div class="cap"><span class="hi">Song</span><span>梦的翅膀受了伤</span></div>
+      <div id="jp" aria-hidden="true"></div>
+      <div id="stats">chorus · 76 bpm<br>press enter to start</div>
+      <button id="go" type="button">start · ↵</button>
+    </aside>
+  </div>
+  <p>Notes: <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> then <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd> <kbd>;</kbd> for the white keys, <kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd> <kbd>Y</kbd> <kbd>U</kbd> <kbd>O</kbd> <kbd>P</kbd> for the black. Waveform: <kbd>1</kbd>–<kbd>4</kbd>. Octave: <kbd>[</kbd> down, <kbd>]</kbd> up. <kbd>Enter</kbd> starts the song — hit each cued key inside its beat window for perfect · good · miss.</p>
+</main>
+
+<script>
+// ---- iso kernel ----
+const C = Math.cos(Math.PI/6), S = Math.sin(Math.PI/6), OX = 200, OY = 122;
+const P = (x,y,z) => [(x-y)*C + OX, (x+y)*S - z + OY];
+const D = (x,y,z) => [(x-y)*C, (x+y)*S - z];
+const plane = (O,U,V) => { const o=P(...O), u=D(...U), v=D(...V); return `matrix(${u[0]} ${u[1]} ${v[0]} ${v[1]} ${o[0]} ${o[1]})`; };
+const TOP = (x,y,z) => plane([x,y,z],[1,0,0],[0,1,0]);
+const FRONT = (x,y,z) => plane([x,y,z],[1,0,0],[0,0,-1]);
+const SIDE = (x,y,z) => plane([x,y,z],[0,-1,0],[0,0,-1]);
+const rect = (t,w,h,r=0,cls='face') => `<g transform="${t}"><rect class="${cls}" width="${w}" height="${h}" rx="${r}"/></g>`;
+const box = (x,y,z,w,d,h,r=0) => rect(SIDE(x+w,y+d,z+h),d,h,Math.min(r,h/4)) + rect(FRONT(x,y+d,z+h),w,h,Math.min(r,h/4)) + rect(TOP(x,y,z+h),w,d,r,'face top');
+
+// ---- scene, back to front ----
+const W = 536, DECK = 26, SW = 200, SH = 48;
+let svg = box(0,0,0, W,192,DECK, 6);                                   // body
+svg += box(0,0,DECK, W,60,70, 5);                                      // riser
+svg += `<g transform="${FRONT(0,60,DECK+70)}">
+  <rect class="face glass" x="18" y="11" width="${SW}" height="${SH}" rx="5"/>
+  <path class="detail" d="M18 ${11+SH/2}h${SW}"/>
+  <polyline id="scope" class="scope" points="18,${11+SH/2} ${18+SW},${11+SH/2}"/>
+  <text id="note" class="lcd" x="236" y="38" font-size="22">--</text>
+  <text id="hz" class="lcd" x="237" y="53" font-size="8.5" opacity=".7">press a key</text>
+  ${Array.from({length:9},(_,i)=>`<path class="detail" d="M${456+i*7} 14v42"/>`).join('')}
+</g>`;
+const BTNS = [['sine','1'],['square','2'],['sawtooth','3'],['triangle','4'],['song','enter'],['oct-','['],['oct+',']']];
+const LABEL = {sine:'SIN',square:'SQR',sawtooth:'SAW',triangle:'TRI',song:'SONG','oct-':'OCT−','oct+':'OCT+'};
+BTNS.forEach(([id],i) => { const x = 20 + i*46 + (i === 4 ? 60 : i > 4 ? 170 : 0);
+  svg += `<g class="press btn" data-btn="${id}">${box(x,67,DECK, 38,16,5, 3)}<g transform="${TOP(x,67,DECK+5)}"><text class="lbl" x="19" y="10.5">${LABEL[id]}</text></g></g>`; });
+const WHITE = [-5,-3,-1,0,2,4,5,7,9,11,12,14,16], BLACK = {0:-4,1:-2,3:1,4:3,6:6,7:8,8:10,10:13,11:15};
+WHITE.forEach((semi,i) => svg += `<g class="press key wk" data-semi="${semi}">${box(20+i*38,92,DECK, 34,90,8, 2)}</g>`);
+for (const i in BLACK) svg += `<g class="press key bk" data-semi="${BLACK[i]}">${box(20+(+i+1)*38-12,92,DECK+2, 20,54,13, 2)}</g>`;
+const stage = document.getElementById('stage'); stage.innerHTML = svg;
+const $ = id => document.getElementById(id), keyEls = new Map([...stage.querySelectorAll('.key')].map(k => [+k.dataset.semi, k]));
+const label = midi => NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
+
+// ---- sound ----
+const NAMES = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+const state = { wave:'sawtooth', oct:4, held:new Map() };            // semi -> {osc, gain, midi}
+let ctx, master, analyser, buf;
+function audio() {
+  if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return true; }
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    master = ctx.createGain(); master.gain.value = 0.16;
+    analyser = ctx.createAnalyser(); analyser.fftSize = 2048; buf = new Float32Array(analyser.fftSize);
+    master.connect(analyser); analyser.connect(ctx.destination); return true;
+  } catch { ctx = null; return false; }
+}
+const freq = midi => 440 * 2 ** ((midi - 69) / 12);
+function noteOn(semi) {
+  if (state.held.has(semi)) return;
+  const midi = 12 * (state.oct + 1) + semi, v = { midi };
+  if (audio()) {
+    v.osc = ctx.createOscillator(); v.gain = ctx.createGain();
+    v.osc.type = state.wave; v.osc.frequency.value = freq(midi);
+    v.gain.gain.setValueAtTime(0, ctx.currentTime); v.gain.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.012);
+    v.osc.connect(v.gain).connect(master); v.osc.start();
+  }
+  state.held.set(semi, v); state.last = midi;
+  judgePress(semi);
+  render();
+}
+function noteOff(semi) {
+  const v = state.held.get(semi); if (!v) return;
+  if (v.osc) { const t = ctx.currentTime; v.gain.gain.cancelScheduledValues(t); v.gain.gain.setValueAtTime(v.gain.gain.value, t);
+    v.gain.gain.linearRampToValueAtTime(0, t + 0.12); v.osc.stop(t + 0.14); }
+  state.held.delete(semi); render();
+}
+function button(id) {
+  const el = stage.querySelector(`[data-btn="${id}"]`); el.classList.add('down'); setTimeout(() => el.classList.remove('down'), 120);
+  if (id === 'song') { start(); return; }
+  if (id === 'oct-' || id === 'oct+') { [...state.held.keys()].forEach(noteOff); state.oct = Math.max(1, Math.min(7, state.oct + (id === 'oct+' ? 1 : -1))); }
+  else { state.wave = id; for (const v of state.held.values()) if (v.osc) v.osc.type = id; }
+  audio(); render();
+}
+
+// ---- song: 梦的翅膀受了伤 (chorus), jianpu degrees + beats; 0 = rest ----
+const SONG = { title:'梦的翅膀受了伤 · chorus', bpm:76, lead:4,
+  // degree: 1-7 mid octave, 8-14 high, <=0 low. beats in quarter notes.
+  notes: [
+    [10,.5],[9,.5],[8,.5],[7,.5],[7,.5],[7,.5],[7,.5],[9,.5],
+    [8,2],[0,1],[8,.5],[8,.5],
+    [8,.5],[8,.5],[8,.5],[9,.5],[7,.5],[5,.5],[9,.5],[9,.5],
+    [9,.5],[10,.5],[10,2],[0,1],
+    [5,.5],[5,.5],[5,.5],[8,.5],[8,.5],[9,1.5],
+    [7,.5],[3,.5],[7,.5],[7,.5],[5,.5],[5,.5],[5,1],
+    [5,.5],[5,.5],[5,.5],[8,.5],[9,.5],[9,.5],[9,.5],[8,.25],[5,.25],
+    [5,2],[0,1],[0,1],
+    [10,.5],[9,.5],[8,.5],[7,.5],[7,.5],[7,.5],[9,.5],[9,.5],
+    [8,2],[0,1],[8,.5],[7,.5],
+    [8,.5],[8,.5],[8,.5],[9,.5],[7,.5],[5,.5],[9,.5],[9,.5],
+    [9,.5],[10,.5],[10,2],[0,1],
+    [5,1],[5,.5],[8,.5],[8,.5],[9,1.5],
+    [7,1],[3,.5],[7,.5],[5,.5],[5,1.5],
+    [5,.5],[5,.5],[5,.5],[8,.5],[9,.5],[9,.5],[9,.5],[5,.5],
+    [5,.5],[5,.5],[5,2],[0,1]
+  ] };
+const SCALE = [0,2,4,5,7,9,11];
+const deg2semi = d => SCALE[((d-1)%7+7)%7] + 12*Math.floor((d-1)/7);
+const SPB = 60 / SONG.bpm;
+let acc = SONG.lead;
+const seq = SONG.notes.map(([deg,beats]) => {
+  const n = { deg, semi: deg ? deg2semi(deg) : null, at: acc * SPB, beats, judged:false, el:null };
+  acc += beats; return n;
+});
+const TOTAL = seq.filter(n => n.semi !== null).length;
+const PERFECT = .12, GOOD = .26;
+const song = { running:false, done:false, idx:0, t0:0, pf:0, gd:0, ms:0, cue:null };
+const nowS = () => ctx ? ctx.currentTime : performance.now()/1000;
+const KEYMAP = {}; [...'zxcasdfghjkl;'].forEach((c,i) => KEYMAP[c] = WHITE[i]); [...'qwertyuop'].forEach((c,i) => KEYMAP[c] = BLACK[Object.keys(BLACK)[i]]);
+const letterOf = semi => Object.keys(KEYMAP).find(k => KEYMAP[k] === semi) || '';
+
+// jianpu strip
+const jp = document.getElementById('jp');
+seq.forEach(n => {
+  const s = document.createElement('span'); s.className = 'np';
+  if (n.semi === null) { s.innerHTML = '<b>0</b><i>·</i>'; s.classList.add('rest'); }
+  else {
+    const dig = ((n.deg-1)%7+7)%7 + 1;
+    s.innerHTML = `<b>${dig}</b><i>${letterOf(n.semi)}</i>`;
+    if (n.deg > 7) s.classList.add('hi'); else if (n.deg < 1) s.classList.add('lo');
+    if (n.beats === .25) s.style.paddingInline = '2px';
+  }
+  n.el = s; jp.appendChild(s);
+});
+
+function stats() {
+  const done = song.pf + song.gd + song.ms;
+  $('stats').innerHTML = !song.running && !done ? `${SONG.title} · ${SONG.bpm} bpm<br>press enter to start`
+    : `note ${Math.min(done+1,TOTAL)}/${TOTAL} · perfect ${song.pf} · good ${song.gd} · miss ${song.ms}`
+      + (song.done ? `<br>done · accuracy ${Math.round((song.pf*2+song.gd)/(TOTAL*2)*100)}%` : '');
+}
+let lcdMsg = '', lcdUntil = 0;
+function flash(msg, dur = .8) { lcdMsg = msg; lcdUntil = nowS() + dur; $('hz').textContent = msg; }
+function grade(n, g) {
+  n.judged = true; n.el.classList.add('done'); n.el.classList.remove('cur');
+  if (g === 'pf') { song.pf++; flash('perfect'); }
+  else if (g === 'gd') { song.gd++; flash('good'); }
+  else { song.ms++; n.el.classList.add('miss'); flash('miss'); }
+}
+function judgePress(semi) {
+  if (!song.running) return;
+  const t = nowS() - song.t0, n = seq[song.idx];
+  if (!n || n.semi === null) return;
+  const dt = t - n.at;
+  if (n.semi === semi && Math.abs(dt) <= GOOD) return grade(n, Math.abs(dt) <= PERFECT ? 'pf' : 'gd');
+  if (Math.abs(dt) <= .6) flash(n.semi === semi ? 'too early' : 'wrong key');
+}
+function tick() {
+  if (!song.running) return;
+  const t = nowS() - song.t0;
+  while (song.idx < seq.length) {
+    const n = seq[song.idx];
+    if (n.semi === null) { if (t > n.at) { n.el.classList.add('done'); song.idx++; } else break; }
+    else if (n.judged) song.idx++;
+    else if (t > n.at + GOOD) grade(n, 'ms');
+    else break;
+  }
+  // cue + LCD
+  if (song.cue) { keyEls.get(song.cue.semi)?.classList.remove('cue'); song.cue = null; }
+  const n = seq[song.idx];
+  if (song.idx >= seq.length) {
+    song.running = false; song.done = true; flash('done');
+    stats(); render(); return;
+  }
+  if (n.semi !== null) {
+    n.el.classList.add('cur');
+    jp.scrollLeft = n.el.offsetLeft - jp.clientWidth/2;
+    if (n.at - t < SPB) { keyEls.get(n.semi)?.classList.add('cue'); song.cue = n; }
+    const msg = nowS() < lcdUntil ? lcdMsg : null, t2 = seq[0].at;
+    if (t < 0) { $('note').textContent = '…'; $('hz').textContent = msg || 'get ready'; }
+    else if (t < t2 - GOOD) { $('note').textContent = Math.ceil((t2 - t) / SPB); $('hz').textContent = msg || 'count in'; }
+    else { $('note').textContent = label(60 + n.semi); $('hz').textContent = msg || `key ${letterOf(n.semi)}`; }
+  }
+  stats();
+}
+$('go').addEventListener('click', start);
+function start() {
+  if (!audio()) return;
+  [...state.held.keys()].forEach(noteOff);
+  seq.forEach(n => { n.judged = false; n.el.classList.remove('done','cur','miss'); });
+  song.running = true; song.done = false; song.idx = 0; song.pf = song.gd = song.ms = 0;
+  song.t0 = nowS() + .5; jp.scrollLeft = 0; stats();
+}
+
+// ---- view ----
+function render() {
+  keyEls.forEach((el, semi) => el.classList.toggle('down', state.held.has(semi)));
+  stage.querySelectorAll('.btn').forEach(b => b.classList.toggle('sel', b.dataset.btn === state.wave));
+  const mids = [...state.held.values()].map(v => v.midi).sort((a,b) => a-b), top = mids[mids.length-1];
+  if (!song.running && nowS() >= lcdUntil) {
+    $('note').textContent = mids.length ? label(top) : '--';
+    $('hz').textContent = mids.length ? `${freq(top).toFixed(1)} Hz` + (mids.length > 1 ? ` · ${mids.length} notes` : '') : (ctx ? 'ready' : 'press a key');
+  }
+  $('readout').textContent = `${LABEL[state.wave].toLowerCase()} · oct ${state.oct} · ` + (mids.length ? mids.map(label).join(' ') : 'silent')
+    + (song.running || song.done ? ` · song ${song.pf+song.gd+song.ms}/${TOTAL}` : '');
+}
+const scope = $('scope'), N = 120, MID = 11 + SH/2;
+(function draw() {
+  requestAnimationFrame(draw);
+  tick();
+  if (!analyser) return;
+  analyser.getFloatTimeDomainData(buf);
+  let s = 0; for (let i = 1; i < 900; i++) if (buf[i-1] < 0 && buf[i] >= 0) { s = i; break; }   // lock to a rising edge
+  let pts = '';
+  for (let i = 0; i <= N; i++) { const y = Math.max(-21, Math.min(21, buf[s + i*5] * -90)); pts += `${18 + i*SW/N},${(MID + y).toFixed(1)} `; }
+  scope.setAttribute('points', pts);
+})();
+
+// ---- input: pointer (click, drag, touch) and keyboard go through the same functions ----
+const pointers = new Map();                                            // pointerId -> semi
+const keyAt = e => { const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.key'); return el ? +el.dataset.semi : null; };
+stage.addEventListener('pointerdown', e => {
+  const b = e.target.closest('.btn'); if (b) { button(b.dataset.btn); return; }
+  const semi = keyAt(e); if (semi === null) return;
+  e.preventDefault(); stage.setPointerCapture?.(e.pointerId); pointers.set(e.pointerId, semi); noteOn(semi);
+});
+stage.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  const was = pointers.get(e.pointerId), now = keyAt(e);
+  if (now === was) return;
+  if (was !== null) noteOff(was);
+  pointers.set(e.pointerId, now); if (now !== null) noteOn(now);
+});
+const lift = e => { if (!pointers.has(e.pointerId)) return; const s = pointers.get(e.pointerId); pointers.delete(e.pointerId); if (s !== null) noteOff(s); };
+stage.addEventListener('pointerup', lift); stage.addEventListener('pointercancel', lift);
+const BTNMAP = Object.fromEntries(BTNS.map(([id,k]) => [k,id]));
+window.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+  const k = e.key.toLowerCase();
+  if (k in KEYMAP) { noteOn(KEYMAP[k]); e.preventDefault(); }
+  else if (k in BTNMAP) { button(BTNMAP[k]); e.preventDefault(); }
+});
+window.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (k in KEYMAP) noteOff(KEYMAP[k]); });
+window.addEventListener('blur', () => [...state.held.keys()].forEach(noteOff));
+render();
+</script>
+</body>
+</html>
